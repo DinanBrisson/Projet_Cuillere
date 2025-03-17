@@ -1,5 +1,6 @@
 #include <Arduino_LSM6DSOX.h>
 #include <Servo.h>
+// #include <ArduinoBLE.h> // === BLE désactivé ===
 
 Servo servoX;
 Servo servoY;
@@ -24,6 +25,11 @@ const float alpha = 0.98; // Ajustable
 // Temps pour calcul deltaT
 unsigned long lastTime;
 
+/* === Partie BLE désactivée ===
+BLEService angleService("053c38bf-fcad-4014-bb61-611af9a9e6aa");
+BLECharacteristic angleCharacteristic("4c5800c3-eca9-48ab-8d04-e1d02d7fe771", BLERead | BLENotify, 12);
+*/
+
 void calibrateGyro() {
   Serial.println("Calibration gyroscope...");
   float sumGx = 0, sumGy = 0, sumGz = 0;
@@ -47,90 +53,116 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
+  /* === Initialisation BLE désactivée ===
+  if (!BLE.begin()) {
+    Serial.println("Échec de l'initialisation du BLE !");
+    while (1);
+  }
+  angleService.addCharacteristic(angleCharacteristic);
+  BLE.addService(angleService);
+  BLE.advertise();
+  Serial.println("Périphérique BLE démarré");
+  */
+
   if (!IMU.begin()) {
     Serial.println("Erreur : Impossible d'initialiser l'IMU !");
     while (1);
   }
 
-  // Message clair avant calibration
   Serial.println("=======================================");
   Serial.println("!!! ATTENTION !!!");
   Serial.println("Posez la cuillère bien à plat, immobile.");
   Serial.println("Début de la calibration dans 3 secondes...");
   Serial.println("=======================================");
-  delay(3000); // Temps pour que tu la poses tranquillement
+  delay(3000);
 
-  calibrateGyro(); // Calibration propre après délai
+  calibrateGyro();
 
-  // Initialisation des angles avec accéléromètre (IMPORTANT)
-  if (IMU.accelerationAvailable()) {
-    IMU.readAcceleration(Ax, Ay, Az);
-
-    float accelRoll  = atan2(Ay, Az) * 180 / PI;
-    float accelPitch = atan2(-Ax, sqrt(Ay * Ay + Az * Az)) * 180 / PI;
-
-    roll = accelRoll;
-    pitch = accelPitch;
-
-    Serial.println("Initialisation des angles terminée.");
+  // Moyenne initialisation accéléromètre 
+  float sumAx = 0, sumAy = 0, sumAz = 0;
+  int samples = 100;
+  for (int i = 0; i < samples; i++) {
+    if (IMU.accelerationAvailable()) {
+      IMU.readAcceleration(Ax, Ay, Az);
+      sumAx += Ax;
+      sumAy += Ay;
+      sumAz += Az;
+    }
+    delay(5);
   }
+  Ax = sumAx / samples;
+  Ay = sumAy / samples;
+  Az = sumAz / samples;
+  float accelRoll  = atan2(Ay, Az) * 180 / PI;
+  float accelPitch = atan2(-Ax, sqrt(Ay * Ay + Az * Az)) * 180 / PI;
+  roll = accelRoll;
+  pitch = accelPitch;
+  Serial.println("Initialisation des angles terminée.");
 
-  // Attache des servos
   servoX.attach(9);
   servoY.attach(8);
   servoZ.attach(7);
 
-  // Position neutre (offsets manuels)
   servoX.write(90 + roll_offset);
   servoY.write(90 + pitch_offset);
   servoZ.write(90 + yaw_offset);
   delay(1000);
 
   lastTime = millis();
-
   Serial.println("IMU + Servos prêts !");
 }
 
 void loop() {
+  // BLE.poll(); // === BLE désactivé ===
+
   unsigned long currentTime = millis();
-  float deltaTime = (currentTime - lastTime) / 1000.0; // En secondes
+  float deltaTime = (currentTime - lastTime) / 1000.0; // en secondes
   lastTime = currentTime;
+
+  // Clamp deltaTime pour éviter les gros sauts
+  if (deltaTime > 0.1) deltaTime = 0.01;
 
   if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
     IMU.readAcceleration(Ax, Ay, Az);
     IMU.readGyroscope(Gx, Gy, Gz);
 
-    // Enlever offset gyroscope
+    // Correction des offsets gyroscope
     Gx -= Gx_offset;
     Gy -= Gy_offset;
     Gz -= Gz_offset;
 
-    // Calcul des angles par accéléromètre
     float accelRoll  = atan2(Ay, Az) * 180 / PI;
     float accelPitch = atan2(-Ax, sqrt(Ay * Ay + Az * Az)) * 180 / PI;
 
-    // Filtre complémentaire pour lisser
     roll  = alpha * (roll + Gx * deltaTime) + (1 - alpha) * accelRoll;
     pitch = alpha * (pitch + Gy * deltaTime) + (1 - alpha) * accelPitch;
     yaw  -= Gz * deltaTime;
 
-    // Centre les angles autour de 90° et limite
-    int roll_servo  = constrain(90 + roll_offset + (roll), 0, 180);
-    int pitch_servo = constrain(90 + pitch_offset + (pitch), 0, 180);
-    int yaw_servo   = constrain(90 + yaw_offset + (yaw - 90), 0, 180); // Car yaw démarre à 90°
+    int roll_servo  = constrain(90 + roll_offset + roll, 0, 180);
+    int pitch_servo = constrain(90 + pitch_offset + pitch, 0, 180);
+    int yaw_servo   = constrain(90 + yaw_offset + (yaw - 90), 0, 180);
 
-    // Appliquer aux servos
     servoX.write(roll_servo);
     servoY.write(pitch_servo);
     servoZ.write(yaw_servo);
 
-    // Debug
-    Serial.print("Roll : ");
-    Serial.print(roll_servo);
-    Serial.print(" | Pitch : ");
-    Serial.print(pitch_servo);
-    Serial.print(" | Yaw : ");
-    Serial.println(yaw_servo);
+    // BLE désactivé
+    /*
+    float angles[3] = { (float)roll_servo, (float)pitch_servo, (float)yaw_servo };
+    angleCharacteristic.writeValue((uint8_t*)angles, sizeof(angles));
+    */
+
+   Serial.print("Roll : ");
+   Serial.print(roll_servo);
+   Serial.print(" | Pitch : ");
+   Serial.print(pitch_servo);
+   Serial.print(" | Yaw : ");
+   Serial.print(yaw_servo);
+   Serial.println(); 
+
+
+  } else {
+    Serial.println("IMU non dispo !");
   }
 
   delay(10);
