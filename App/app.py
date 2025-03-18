@@ -7,7 +7,7 @@ from flask_socketio import SocketIO
 from bleak import BleakClient, BleakScanner, BleakError
 
 # Adresse BLE et UUID
-DEVICE_ADDRESS = "58:BF:25:3B:FE:66"  # Remplace avec l'adresse trouvée avec scan_ble.py
+DEVICE_ADDRESS = "58:BF:25:3B:FE:66"
 ANGLE_CHAR_UUID = "4c5800c3-eca9-48ab-8d04-e1d02d7fe771"
 
 app = Flask(__name__)
