@@ -66,8 +66,8 @@ async def run_ble_client():
         except BleakError as e:
             print(f"Erreur de connexion BLE : {e}")
             ble_connected = False
-            print("Reconnexion dans 3 secondes...")
-            time.sleep(3)
+            print("Reconnexion dans 1 secondes...")
+            time.sleep(1)
 
 #Lancement du client BLE dans un thread
 def start_ble_loop():
