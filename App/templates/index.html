@@ -5,6 +5,13 @@
 {% block content %}
     <div class="container">
         <h2 class="text-center">Évolution en temps réel des angles</h2>
+
+        <!-- Indicateur de connexion BLE -->
+        <div class="text-center mb-3">
+            <span id="ble-status" class="badge bg-danger">Déconnecté</span>
+        </div>
+
+        <!-- Graphique -->
         <canvas id="anglesChart"></canvas>
     </div>
 
@@ -58,5 +65,27 @@
 
             anglesChart.update();
         });
+
+        // Vérifier l'état de connexion BLE toutes les 5 secondes
+        function checkStatus() {
+            fetch("/status")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.ble_connected) {
+                        document.getElementById("ble-status").innerText = "Connecté";
+                        document.getElementById("ble-status").className = "badge bg-success";
+                    } else {
+                        document.getElementById("ble-status").innerText = "Déconnecté";
+                        document.getElementById("ble-status").className = "badge bg-danger";
+                    }
+                })
+                .catch(error => {
+                    console.error("Erreur lors de la récupération du statut BLE :", error);
+                    document.getElementById("ble-status").innerText = "Erreur";
+                    document.getElementById("ble-status").className = "badge bg-warning";
+                });
+        }
+
+        setInterval(checkStatus, 5000);  // Mise à jour de l'état toutes les 5s
     </script>
 {% endblock %}

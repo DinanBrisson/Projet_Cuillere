@@ -81,14 +81,12 @@ ble_thread.start()
 # Route principale de Flask
 @app.route("/")
 def index():
-    if not ble_connected:
-        return redirect(url_for("error_page"))
     return render_template("index.html")
 
 # Page d'erreur si BLE non trouvé
-@app.route("/error")
-def error_page():
-    return render_template("error.html")
+# @app.route("/error")
+# def error_page():
+#     return render_template("error.html")
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
