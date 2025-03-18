@@ -1,137 +1,74 @@
 import asyncio
-import json
-import numpy as np
-import tkinter as tk
-from bleak import BleakClient, BleakScanner
-import pygame
-from pygame.locals import *
-from OpenGL.GL import *
-from OpenGL.GLU import *
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import struct
+import threading
+from flask import Flask, render_template_string
+from bleak import BleakClient
 
-# Nom du périphérique BLE et UUID de la caractéristique
-BLE_DEVICE_NAME = "NanoRP2040_IMU"
-BLE_CHARACTERISTIC_UUID = "2A57"
+# Adresse BLE de votre Nano RP2040
+DEVICE_ADDRESS = "58:BF:25:3B:FE:66"
+# UUID de la caractéristique utilisée côté Arduino
+ANGLE_CHAR_UUID = "4c5800c3-eca9-48ab-8d04-e1d02d7fe771"
 
-# Stockage des angles
-roll, pitch, yaw = 0, 0, 90
+app = Flask(__name__)
 
+# Données partagées entre BLE et Flask
+angle_data = {
+    "roll": 0.0,
+    "pitch": 0.0,
+    "yaw": 0.0
+}
+data_lock = threading.Lock()  # Pour protéger l'accès concurrent
 
-async def find_device():
-    print("Recherche du périphérique BLE...")
-    devices = await BleakScanner.discover()
-    for device in devices:
-        if BLE_DEVICE_NAME in device.name:
-            print(f"Périphérique trouvé : {device.name} - {device.address}")
-            return device.address
-    print("Aucun périphérique trouvé.")
-    return None
+# Fonction appelée à chaque notification BLE reçue
+def notification_handler(sender, data):
+    global angle_data
+    roll, pitch, yaw = struct.unpack('fff', data)
+    with data_lock:
+        angle_data["roll"] = round(roll, 2)
+        angle_data["pitch"] = round(pitch, 2)
+        angle_data["yaw"] = round(yaw, 2)
+    print(f"Notification reçue -> Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
 
-
-async def receive_data(address):
-    async with BleakClient(address) as client:
-        print(f"Connecté à {address}")
-        await client.start_notify(BLE_CHARACTERISTIC_UUID, handle_data)
-
+# Boucle BLE
+async def run_ble_client():
+    async with BleakClient(DEVICE_ADDRESS) as client:
+        print("Connecté au périphérique BLE")
+        await client.start_notify(ANGLE_CHAR_UUID, notification_handler)
         while True:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1)  # Maintenir la connexion active
 
+# Lancement du client BLE dans un thread séparé
+def start_ble_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_ble_client())
 
-def handle_data(_, data):
-    global roll, pitch, yaw
-    try:
-        data_str = data.decode("utf-8").strip()
-        json_data = json.loads(data_str)
-        roll = float(json_data["roll"]) - 90
-        pitch = float(json_data["pitch"]) - 90
-        yaw = float(json_data["yaw"]) - 90
-        update_labels()
-    except Exception as e:
-        print("Erreur de réception:", e)
+ble_thread = threading.Thread(target=start_ble_loop, daemon=True)
+ble_thread.start()
 
+# Route Flask
+@app.route("/")
+def index():
+    with data_lock:
+        roll = angle_data["roll"]
+        pitch = angle_data["pitch"]
+        yaw = angle_data["yaw"]
 
-def update_labels():
-    roll_label.config(text=f"Roll (X) : {roll:.2f}")
-    pitch_label.config(text=f"Pitch (Y) : {pitch:.2f}")
-    yaw_label.config(text=f"Yaw (Z) : {yaw:.2f}")
-    update_plot()
+    html = """
+    <html>
+      <head>
+        <meta http-equiv="refresh" content="2"> <!-- Refresh toutes les 2 sec -->
+      </head>
+      <body>
+        <h1>Angles du Nano RP2040</h1>
+        <p><strong>Roll :</strong> {{ roll }}°</p>
+        <p><strong>Pitch :</strong> {{ pitch }}°</p>
+        <p><strong>Yaw :</strong> {{ yaw }}°</p>
+      </body>
+    </html>
+    """
+    return render_template_string(html, roll=roll, pitch=pitch, yaw=yaw)
 
-
-def update_plot():
-    ax.clear()
-    ax.bar(["Roll", "Pitch", "Yaw"], [roll, pitch, yaw], color=['r', 'g', 'b'])
-    ax.set_ylim(-90, 90)
-    canvas.draw()
-
-
-def draw_spoon():
-    glBegin(GL_QUADS)
-    glColor3f(0.8, 0.8, 0.8)
-
-    # Manche de la cuillère
-    glVertex3f(-0.05, -1, 0)
-    glVertex3f(0.05, -1, 0)
-    glVertex3f(0.05, 0.3, 0)
-    glVertex3f(-0.05, 0.3, 0)
-
-    # Partie arrondie (tête de la cuillère)
-    glVertex3f(-0.15, 0.3, 0)
-    glVertex3f(0.15, 0.3, 0)
-    glVertex3f(0.1, 0.6, 0.1)
-    glVertex3f(-0.1, 0.6, 0.1)
-
-    glEnd()
-
-
-def run_3d_simulation():
-    pygame.init()
-    display = (400, 400)
-    pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
-    gluPerspective(45, (display[0] / display[1]), 0.1, 50.0)
-    glTranslatef(0, 0, -3)
-
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                return
-
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        glPushMatrix()
-
-        glRotatef(roll, 1, 0, 0)
-        glRotatef(pitch, 0, 1, 0)
-        glRotatef(yaw, 0, 0, 1)
-
-        draw_spoon()
-        glPopMatrix()
-        pygame.display.flip()
-        pygame.time.wait(10)
-
-
-async def main():
-    global root, roll_label, pitch_label, yaw_label, ax, canvas
-
-    root = tk.Tk()
-    root.title("Interface Gyroscope & Simulation 3D")
-
-    roll_label = tk.Label(root, text="Roll (X) : 0.00", font=("Arial", 14))
-    roll_label.pack()
-    pitch_label = tk.Label(root, text="Pitch (Y) : 0.00", font=("Arial", 14))
-    pitch_label.pack()
-    yaw_label = tk.Label(root, text="Yaw (Z) : 0.00", font=("Arial", 14))
-    yaw_label.pack()
-
-    fig, ax = plt.subplots(figsize=(4, 3))
-    canvas = FigureCanvasTkAgg(fig, master=root)
-    canvas.get_tk_widget().pack()
-
-    address = await find_device()
-    if address:
-        asyncio.create_task(receive_data(address))
-        asyncio.create_task(asyncio.to_thread(run_3d_simulation))
-        root.mainloop()
-
-
-asyncio.run(main())
+# Lancer Flask sans debug pour éviter les problèmes de cache
+if __name__ == '__main__':
+    app.run(debug=False)
