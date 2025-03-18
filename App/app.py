@@ -5,10 +5,9 @@ import time
 from flask import Flask, render_template, redirect, url_for
 from flask_socketio import SocketIO
 from bleak import BleakClient, BleakScanner, BleakError
-from ble_client import get_ble_data, ble_connected
 
 # Adresse BLE et UUID
-DEVICE_ADDRESS = "58:BF:25:3B:FE:66"
+DEVICE_ADDRESS = "58:BF:25:3B:FE:66"  # Remplace avec l'adresse trouvée avec scan_ble.py
 ANGLE_CHAR_UUID = "4c5800c3-eca9-48ab-8d04-e1d02d7fe771"
 
 app = Flask(__name__)
@@ -17,6 +16,7 @@ socketio = SocketIO(app, async_mode="eventlet")
 # Stockage des données BLE
 angle_data = {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}
 data_lock = threading.Lock()
+ble_connected = False  # Indicateur de connexion BLE
 
 # Recherche du périphérique BLE
 async def find_device():
@@ -24,11 +24,12 @@ async def find_device():
     print("Recherche du périphérique BLE...")
     devices = await BleakScanner.discover()
     for device in devices:
+        print(f"Appareil trouvé : {device.name} - Adresse : {device.address}")
         if DEVICE_ADDRESS in device.address:
-            print(f"Périphérique trouvé : {device.name} - {device.address}")
+            print(f"Périphérique détecté : {device.name} - {device.address}")
             ble_connected = True
             return device.address
-    print("Aucun périphérique trouvé.")
+    print("Aucun périphérique BLE trouvé.")
     ble_connected = False
     return None
 
@@ -43,7 +44,7 @@ def notification_handler(sender, data):
             angle_data["yaw"] = round(yaw, 2)
         print(f"Données reçues -> Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
 
-        # Envoi des données en direct au navigateur
+        # Envoi des données en direct au navigateur via WebSocket
         socketio.emit("update_angles", angle_data)
 
     except Exception as e:
@@ -65,10 +66,10 @@ async def run_ble_client():
         except BleakError as e:
             print(f"Erreur de connexion BLE : {e}")
             ble_connected = False
-            print("Tentative de reconnexion dans 1 seconde...")
-            time.sleep(1)
+            print("Reconnexion dans 3 secondes...")
+            time.sleep(3)
 
-# Lancement du client BLE dans un thread
+#Lancement du client BLE dans un thread
 def start_ble_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -84,7 +85,7 @@ def index():
         return redirect(url_for("error_page"))
     return render_template("index.html")
 
-# Route d'erreur si BLE non trouvé
+# Page d'erreur si BLE non trouvé
 @app.route("/error")
 def error_page():
     return render_template("error.html")
