@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Évolution des Angles{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h2 class="text-center">Évolution en temps réel des angles</h2>
+        <canvas id="anglesChart"></canvas>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        var ctx = document.getElementById("anglesChart").getContext("2d");
+        var anglesChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: [],  // Liste des timestamps
+                datasets: [
+                    { label: "Roll (X)", borderColor: "red", data: [], fill: false },
+                    { label: "Pitch (Y)", borderColor: "green", data: [], fill: false },
+                    { label: "Yaw (Z)", borderColor: "blue", data: [], fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: "Temps" } },
+                    y: { title: { display: true, text: "Degrés" }, min: -90, max: 90 }
+                }
+            }
+        });
+
+        // Connexion WebSocket au serveur Flask
+        var socket = io.connect("http://" + document.domain + ":5000");
+
+        socket.on("connect", function() {
+            console.log("Connecté au serveur WebSocket");
+        });
+
+        socket.on("update_angles", function(data) {
+            var timestamp = new Date().toLocaleTimeString();
+
+            // Ajouter les nouvelles données
+            anglesChart.data.labels.push(timestamp);
+            anglesChart.data.datasets[0].data.push(data.roll);
+            anglesChart.data.datasets[1].data.push(data.pitch);
+            anglesChart.data.datasets[2].data.push(data.yaw);
+
+            // Limiter l'affichage à 20 points pour éviter la surcharge
+            if (anglesChart.data.labels.length > 20) {
+                anglesChart.data.labels.shift();
+                anglesChart.data.datasets[0].data.shift();
+                anglesChart.data.datasets[1].data.shift();
+                anglesChart.data.datasets[2].data.shift();
+            }
+
+            anglesChart.update();
+        });
+    </script>
+{% endblock %}
