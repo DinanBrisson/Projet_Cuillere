@@ -1,0 +1,4 @@
+flask
+bleak
+flask-socketio
+eventlet
