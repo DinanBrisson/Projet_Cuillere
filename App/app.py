@@ -1,8 +1,7 @@
 import asyncio
 import struct
 import threading
-import time
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, jsonify
 from flask_socketio import SocketIO
 from bleak import BleakClient, BleakScanner, BleakError
 
@@ -11,14 +10,14 @@ DEVICE_ADDRESS = "58:BF:25:3B:FE:66"
 ANGLE_CHAR_UUID = "4c5800c3-eca9-48ab-8d04-e1d02d7fe771"
 
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode="eventlet")
+socketio = SocketIO(app, async_mode="eventlet") 
 
 # Stockage des données BLE
 angle_data = {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}
 data_lock = threading.Lock()
 ble_connected = False  # Indicateur de connexion BLE
 
-# Recherche du périphérique BLE
+# Recherche du périphérique BLE 
 async def find_device():
     global ble_connected
     print("Recherche du périphérique BLE...")
@@ -44,7 +43,7 @@ def notification_handler(sender, data):
             angle_data["yaw"] = round(yaw, 2)
         print(f"Données reçues -> Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
 
-        # Envoi des données en direct au navigateur via WebSocket
+        # Envoi des données en temps réel au navigateur via WebSocket
         socketio.emit("update_angles", angle_data)
 
     except Exception as e:
@@ -55,38 +54,42 @@ async def run_ble_client():
     global ble_connected
     while True:
         try:
+            print(f"Tentative de connexion au périphérique BLE {DEVICE_ADDRESS}...")
             async with BleakClient(DEVICE_ADDRESS) as client:
                 print(f"Connecté au périphérique BLE {DEVICE_ADDRESS}")
                 ble_connected = True
                 await client.start_notify(ANGLE_CHAR_UUID, notification_handler)
 
-                while True:
+                # Reste connecté tant que le périphérique est disponible
+                while client.is_connected:
                     await asyncio.sleep(1)
 
         except BleakError as e:
             print(f"Erreur de connexion BLE : {e}")
             ble_connected = False
-            print("Reconnexion dans 1 secondes...")
-            time.sleep(1)
+            print("Reconnexion dans 2 secondes...")
+            await asyncio.sleep(2)  
 
-#Lancement du client BLE dans un thread
+# Lancement du client BLE dans un thread séparé
 def start_ble_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(run_ble_client())
 
+# Démarrage du thread BLE
 ble_thread = threading.Thread(target=start_ble_loop, daemon=True)
 ble_thread.start()
 
-# Route principale de Flask
+# Route principale Flask
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html")  # Assurez-vous que index.html existe
 
-# Page d'erreur si BLE non trouvé
-# @app.route("/error")
-# def error_page():
-#     return render_template("error.html")
+# Route pour vérifier l'état de la connexion BLE
+@app.route("/status")
+def status():
+    return jsonify({"ble_connected": ble_connected})
 
+# Démarrage du serveur Flask + WebSocket
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, host='localhost', port=5000)  # Optionnel : ouvert sur le réseau local
