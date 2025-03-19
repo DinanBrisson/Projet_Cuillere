@@ -1,6 +1,6 @@
 #include <Arduino_LSM6DSOX.h>
 #include <Servo.h>
-// #include <ArduinoBLE.h> // === BLE désactivé ===
+#include <ArduinoBLE.h> // === BLE désactivé ===
 
 Servo servoX;
 Servo servoY;
@@ -25,10 +25,9 @@ const float alpha = 0.98; // Ajustable
 // Temps pour calcul deltaT
 unsigned long lastTime;
 
-/* === Partie BLE désactivée ===
 BLEService angleService("053c38bf-fcad-4014-bb61-611af9a9e6aa");
 BLECharacteristic angleCharacteristic("4c5800c3-eca9-48ab-8d04-e1d02d7fe771", BLERead | BLENotify, 12);
-*/
+
 
 void calibrateGyro() {
   Serial.println("Calibration gyroscope...");
@@ -53,7 +52,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
-  /* === Initialisation BLE désactivée ===
+
   if (!BLE.begin()) {
     Serial.println("Échec de l'initialisation du BLE !");
     while (1);
@@ -62,7 +61,7 @@ void setup() {
   BLE.addService(angleService);
   BLE.advertise();
   Serial.println("Périphérique BLE démarré");
-  */
+  
 
   if (!IMU.begin()) {
     Serial.println("Erreur : Impossible d'initialiser l'IMU !");
@@ -78,7 +77,7 @@ void setup() {
 
   calibrateGyro();
 
-  // Moyenne initialisation accéléromètre 
+  // Moyenne initialisation accéléromètre
   float sumAx = 0, sumAy = 0, sumAz = 0;
   int samples = 100;
   for (int i = 0; i < samples; i++) {
@@ -113,7 +112,7 @@ void setup() {
 }
 
 void loop() {
-  // BLE.poll(); // === BLE désactivé ===
+  BLE.poll(); 
 
   unsigned long currentTime = millis();
   float deltaTime = (currentTime - lastTime) / 1000.0; // en secondes
@@ -135,7 +134,7 @@ void loop() {
     float accelPitch = atan2(-Ax, sqrt(Ay * Ay + Az * Az)) * 180 / PI;
 
     roll  = alpha * (roll + Gx * deltaTime) + (1 - alpha) * accelRoll;
-    pitch = alpha * (pitch + Gy * deltaTime) + (1 - alpha) * accelPitch;
+    pitch = alpha * (pitch - Gy * deltaTime) + (1 - alpha) * (-accelPitch);
     yaw  -= Gz * deltaTime;
 
     int roll_servo  = constrain(90 + roll_offset + roll, 0, 180);
@@ -146,19 +145,18 @@ void loop() {
     servoY.write(pitch_servo);
     servoZ.write(yaw_servo);
 
-    // BLE désactivé
-    /*
+
     float angles[3] = { (float)roll_servo, (float)pitch_servo, (float)yaw_servo };
     angleCharacteristic.writeValue((uint8_t*)angles, sizeof(angles));
-    */
+    
 
-   Serial.print("Roll : ");
-   Serial.print(roll_servo);
-   Serial.print(" | Pitch : ");
-   Serial.print(pitch_servo);
-   Serial.print(" | Yaw : ");
-   Serial.print(yaw_servo);
-   Serial.println(); 
+   //Serial.print("Roll : ");
+   //Serial.print(roll_servo);
+   //Serial.print(" | Pitch : ");
+   //Serial.print(pitch_servo);
+   //Serial.print(" | Yaw : ");
+   //Serial.print(yaw_servo);
+   //Serial.println(); 
 
 
   } else {
