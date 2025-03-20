@@ -21,15 +21,14 @@
 
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color: #ffffff;
+            color: white;
         }
         .navbar {
-            background-color: #0d6efd;
+            background-color: #961515;
         }
-        .navbar-brand {
-            color: white;
-            font-weight: bold;
-            font-size: 1.5rem;
+        .navbar-brand, .logout-btn, .btn-outline-light, .btn-outline-light:hover, .text-white {
+            color: white !important;
         }
         .status-connected {
             color: lawngreen;
@@ -52,12 +51,27 @@
             height: 500px !important;
         }
         .logout-btn {
-            color: white;
             text-decoration: none;
             font-weight: bold;
         }
         .logout-btn:hover {
-            color: #ffc107;
+            color: #f3c8d8 !important;
+        }
+        #connect-btn {
+            background-color: #961515;
+            color: white !important;
+            font-weight: bold;
+            border: none;
+        }
+        #connect-btn:hover,
+        #connect-btn:disabled {
+            background-color: #f3c8d8;
+            color: white !important;
+        }
+        .btn-outline-light.profile-btn:hover {
+            background-color: #961515;
+            color: #f3c8d8 !important;
+            border-color: #f3c8d8;
         }
     </style>
 </head>
@@ -66,19 +80,15 @@
     <!-- NAVBAR -->
     <nav class="navbar fixed-top navbar-expand-lg">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="bi bi-heart-pulse-fill"></i> Stable Spoon Interface
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Logo" width="40" height="49" class="me-2">
+                Stable Spoon Interface
             </a>
+
             <div class="d-flex align-items-center ms-auto">
-                <span class="me-3 text-white">BLE Status:</span>
-                <span id="ble-status" class="status-disconnected me-4">Déconnecté</span>
-
-                <!-- Profil Patient Button -->
-                <a href="{{ url_for('profile') }}" class="btn btn-outline-light me-3">
-                    <i class="bi bi-person-circle"></i> Profil Patient
+                <a href="{{ url_for('profile') }}" class="btn btn-outline-light me-3 profile-btn">
+                 <i class="bi bi-person-circle"></i> Profil Patient
                 </a>
-
-                <!-- Logout Button -->
                 <a href="{{ url_for('logout') }}" class="logout-btn">
                     <i class="bi bi-box-arrow-right"></i> Déconnexion
                 </a>
@@ -90,14 +100,18 @@
     <div class="container main-container">
         <!-- BOUTON Connexion -->
         <div class="text-center mb-4">
-            <button id="connect-btn" class="btn btn-primary">
+            <button id="connect-btn" class="btn">
                 <i class="bi bi-bluetooth"></i> Connecter la Cuillère
             </button>
-            <p id="connection-status" class="mt-3 fw-bold"></p>
+
+            <!-- Statut Connecté / Déconnecté -->
+            <div class="mt-2">
+                <span id="ble-status" class="status-disconnected">Déconnecté</span>
+            </div>
         </div>
 
         <div class="chart-container">
-            <h4 class="mb-4 text-center">Visualisation Temps Réel des Angles (Roll, Pitch, Yaw)</h4>
+            <h4 class="mb-4 text-center text-dark">Visualisation Temps Réel des Angles (Roll, Pitch, Yaw)</h4>
             <canvas id="angleChart"></canvas>
         </div>
     </div>
@@ -110,11 +124,9 @@
         // Bouton connexion
         document.getElementById('connect-btn').addEventListener('click', function() {
             const connectBtn = document.getElementById('connect-btn');
-            const statusText = document.getElementById('connection-status');
 
             connectBtn.disabled = true;
             connectBtn.innerHTML = '<i class="bi bi-bluetooth"></i> Connexion en cours...';
-            statusText.textContent = "Connexion à la cuillère en cours...";
 
             fetch('/connect_ble', { method: 'POST' })
                 .then(response => response.json())
@@ -122,17 +134,14 @@
                     if (!data.success) {
                         connectBtn.disabled = false;
                         connectBtn.innerHTML = '<i class="bi bi-bluetooth"></i> Connecter la Cuillère';
-                        statusText.textContent = "❌ Erreur de connexion.";
-                        statusText.style.color = "red";
                     }
                 });
         });
 
-        // Mise à jour BLE status
+        // BLE Status update
         function updateStatus(status) {
             const statusElem = document.getElementById('ble-status');
             const connectBtn = document.getElementById('connect-btn');
-            const statusText = document.getElementById('connection-status');
 
             if (status) {
                 statusElem.textContent = "Connecté";
@@ -141,8 +150,6 @@
 
                 connectBtn.disabled = true;
                 connectBtn.textContent = "Cuillère Connectée";
-                statusText.textContent = "✅ Cuillère connectée avec succès !";
-                statusText.style.color = "green";
             } else {
                 statusElem.textContent = "Déconnecté";
                 statusElem.classList.remove("status-connected");
@@ -150,18 +157,16 @@
 
                 connectBtn.disabled = false;
                 connectBtn.innerHTML = '<i class="bi bi-bluetooth"></i> Connecter la Cuillère';
-                statusText.textContent = "";
             }
         }
 
-        // Vérifie l'état BLE toutes les 3 sec
+        // Vérification du statut toutes les 3 sec
         setInterval(() => {
             fetch('/status')
                 .then(response => response.json())
                 .then(data => updateStatus(data.ble_connected));
         }, 3000);
 
-        // Réception des angles via socket
         socket.on('update_angles', function(data) {
             latestData = data;
         });
