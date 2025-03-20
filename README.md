@@ -32,7 +32,7 @@ Le but est de développer un dispositif permettant de :
 Pour installer et utiliser le projet en local, suivez les étapes ci-dessous :
 
 ```bash
-git clone https://github.com/votre-utilisateur/stable-spoon.git
+git clone https://github.com/DinanBrisson/Projet_Cuillere
 
 cd stable-spoon
 
