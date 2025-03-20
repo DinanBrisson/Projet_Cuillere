@@ -13,13 +13,13 @@ from App.forms import LoginForm, RegistrationForm, ProfileUpdateForm
 from App.models import User, db
 from App.config import Config
 
-# ========== CONFIG ==========
+# ========== CONFIGURATION DE L'APPLICATION FLASK ==========
 app = Flask(__name__)
 app.config.from_object(Config)
 
 db.init_app(app)
 
-# ========== LOGIN CONFIG ==========
+# ========== GESTION DES CONNEXIONS UTILISATEURS ==========
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -28,7 +28,7 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ========== FLASK-ADMIN ==========
+# ========== CONFIGURATION INTERFACE D'ADMINISTRATION ==========
 class AdminModelView(ModelView):
     def is_accessible(self):
         return current_user.is_authenticated and getattr(current_user, 'is_admin', False)
@@ -40,19 +40,19 @@ class AdminModelView(ModelView):
 admin = Admin(app, name='Admin Panel', template_mode='bootstrap3')
 admin.add_view(AdminModelView(User, db.session))
 
-# ========== SOCKETIO ==========
+# ========== CONFIGURATION SOCKETIO POUR COMMUNICATION EN TEMPS RÉEL ==========
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# ========== BLE CONFIG ==========
-DEVICE_ADDRESS = "58:BF:25:3B:FE:66"
-ANGLE_CHAR_UUID = "4c5800c3-eca9-48ab-8d04-e1d02d7fe771"
+# ========== CONFIGURATION DE LA COMMUNICATION BLUETOOTH (BLE) ==========
+DEVICE_ADDRESS = "58:BF:25:3B:FE:66" # Adresse MAC du périphérique BLE
+ANGLE_CHAR_UUID = "4c5800c3-eca9-48ab-8d04-e1d02d7fe771"  # UUID de la caractéristique BLE
 
 angle_data = {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}
 data_lock = threading.Lock()
 ble_connected = False
 last_send_time = 0
 
-# Recherche périphérique BLE
+# Fonction de recherche asynchrone du périphérique BLE
 async def find_device():
     global ble_connected
     print("Recherche du périphérique BLE...")
@@ -65,7 +65,7 @@ async def find_device():
     ble_connected = False
     return None
 
-# Notification handler BLE
+# Fonction appelée lors de la réception de nouvelles données BLE
 def notification_handler(sender, data):
     global angle_data, last_send_time
     try:
@@ -83,7 +83,7 @@ def notification_handler(sender, data):
     except Exception as e:
         print(f"Erreur de lecture BLE : {e}")
 
-# BLE client loop
+# Fonction asynchrone principale qui gère la connexion BLE permanente
 async def run_ble_client():
     global ble_connected
     while True:
@@ -102,7 +102,7 @@ async def run_ble_client():
             print("Reconnexion dans 2 secondes...")
             await asyncio.sleep(2)
 
-# Thread BLE
+# Lancement du thread BLE pour gérer la connexion BLE en arrière-plan
 def start_ble_loop():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -111,8 +111,7 @@ def start_ble_loop():
 ble_thread = threading.Thread(target=start_ble_loop, daemon=True)
 ble_thread.start()
 
-# ========== ROUTES ==========
-
+# ========== DÉFINITION DES ROUTES WEB DE L'APPLICATION ==========
 @app.route('/')
 @login_required
 def index():
