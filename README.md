@@ -32,18 +32,10 @@ Le but est de développer un dispositif permettant de :
 Pour installer et utiliser le projet en local, suivez les étapes ci-dessous :
 
 ```bash
-# Cloner le dépôt
 git clone https://github.com/votre-utilisateur/stable-spoon.git
 
-# Se déplacer dans le dossier du projet
 cd stable-spoon
 
-# (Optionnel) Créer un environnement virtuel
-python3 -m venv venv
-source venv/bin/activate  # Sous Windows: venv\Scripts\activate
-
-# Installer les dépendances nécessaires
 pip install -r requirements.txt
 
-# Lancer l'application (par exemple pour Flask)
 python app.py
