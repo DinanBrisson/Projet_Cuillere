@@ -1,91 +1,240 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stable Spoon - Dashboard</title>
 
-{% block title %}Évolution des Angles{% endblock %}
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-{% block content %}
-    <div class="container">
-        <h2 class="text-center">Évolution en temps réel des angles</h2>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
 
-        <!-- Indicateur de connexion BLE -->
-        <div class="text-center mb-3">
-            <span id="ble-status" class="badge bg-danger">Déconnecté</span>
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.3/socket.io.min.js"></script>
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            background-color: #0d6efd;
+        }
+        .navbar-brand {
+            color: white;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .status-connected {
+            color: lawngreen;
+            font-weight: bold;
+        }
+        .status-disconnected {
+            color: red;
+            font-weight: bold;
+        }
+        .main-container {
+            margin-top: 100px;
+        }
+        .chart-container {
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        canvas {
+            height: 500px !important;
+        }
+        .logout-btn {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .logout-btn:hover {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar fixed-top navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-heart-pulse-fill"></i> Stable Spoon Interface
+            </a>
+            <div class="d-flex align-items-center ms-auto">
+                <span class="me-3 text-white">BLE Status:</span>
+                <span id="ble-status" class="status-disconnected me-4">Déconnecté</span>
+
+                <!-- Profil Patient Button -->
+                <a href="{{ url_for('profile') }}" class="btn btn-outline-light me-3">
+                    <i class="bi bi-person-circle"></i> Profil Patient
+                </a>
+
+                <!-- Logout Button -->
+                <a href="{{ url_for('logout') }}" class="logout-btn">
+                    <i class="bi bi-box-arrow-right"></i> Déconnexion
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- CONTENU -->
+    <div class="container main-container">
+        <!-- BOUTON Connexion -->
+        <div class="text-center mb-4">
+            <button id="connect-btn" class="btn btn-primary">
+                <i class="bi bi-bluetooth"></i> Connecter la Cuillère
+            </button>
+            <p id="connection-status" class="mt-3 fw-bold"></p>
         </div>
 
-        <!-- Graphique -->
-        <canvas id="anglesChart"></canvas>
+        <div class="chart-container">
+            <h4 class="mb-4 text-center">Visualisation Temps Réel des Angles (Roll, Pitch, Yaw)</h4>
+            <canvas id="angleChart"></canvas>
+        </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    <!-- JS -->
     <script>
-        var ctx = document.getElementById("anglesChart").getContext("2d");
-        var anglesChart = new Chart(ctx, {
-            type: "line",
+        var socket = io.connect('http://' + location.hostname + ':5000');
+        let latestData = { roll: 0, pitch: 0, yaw: 0 };
+
+        // Bouton connexion
+        document.getElementById('connect-btn').addEventListener('click', function() {
+            const connectBtn = document.getElementById('connect-btn');
+            const statusText = document.getElementById('connection-status');
+
+            connectBtn.disabled = true;
+            connectBtn.innerHTML = '<i class="bi bi-bluetooth"></i> Connexion en cours...';
+            statusText.textContent = "Connexion à la cuillère en cours...";
+
+            fetch('/connect_ble', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        connectBtn.disabled = false;
+                        connectBtn.innerHTML = '<i class="bi bi-bluetooth"></i> Connecter la Cuillère';
+                        statusText.textContent = "❌ Erreur de connexion.";
+                        statusText.style.color = "red";
+                    }
+                });
+        });
+
+        // Mise à jour BLE status
+        function updateStatus(status) {
+            const statusElem = document.getElementById('ble-status');
+            const connectBtn = document.getElementById('connect-btn');
+            const statusText = document.getElementById('connection-status');
+
+            if (status) {
+                statusElem.textContent = "Connecté";
+                statusElem.classList.remove("status-disconnected");
+                statusElem.classList.add("status-connected");
+
+                connectBtn.disabled = true;
+                connectBtn.textContent = "Cuillère Connectée";
+                statusText.textContent = "✅ Cuillère connectée avec succès !";
+                statusText.style.color = "green";
+            } else {
+                statusElem.textContent = "Déconnecté";
+                statusElem.classList.remove("status-connected");
+                statusElem.classList.add("status-disconnected");
+
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = '<i class="bi bi-bluetooth"></i> Connecter la Cuillère';
+                statusText.textContent = "";
+            }
+        }
+
+        // Vérifie l'état BLE toutes les 3 sec
+        setInterval(() => {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => updateStatus(data.ble_connected));
+        }, 3000);
+
+        // Réception des angles via socket
+        socket.on('update_angles', function(data) {
+            latestData = data;
+        });
+
+        // Chart.js config
+        const ctx = document.getElementById('angleChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: 'line',
             data: {
-                labels: [],  // Liste des timestamps
                 datasets: [
-                    { label: "Roll (X)", borderColor: "red", data: [], fill: false },
-                    { label: "Pitch (Y)", borderColor: "green", data: [], fill: false },
-                    { label: "Yaw (Z)", borderColor: "blue", data: [], fill: false }
+                    {
+                        label: 'Roll (°)',
+                        borderColor: '#dc3545',
+                        borderWidth: 2,
+                        data: [],
+                    },
+                    {
+                        label: 'Pitch (°)',
+                        borderColor: '#0d6efd',
+                        borderWidth: 2,
+                        data: [],
+                    },
+                    {
+                        label: 'Yaw (°)',
+                        borderColor: '#198754',
+                        borderWidth: 2,
+                        data: [],
+                    }
                 ]
             },
             options: {
                 responsive: true,
+                animation: false,
                 scales: {
-                    x: { title: { display: true, text: "Temps" } },
-                    y: { title: { display: true, text: "Degrés" }, min: -90, max: 90 }
+                    x: {
+                        type: 'realtime',
+                        realtime: {
+                            duration: 30000,
+                            refresh: 500,
+                            delay: 1000,
+                            onRefresh: function(chart) {
+                                chart.data.datasets[0].data.push({
+                                    x: Date.now(),
+                                    y: latestData.roll
+                                });
+                                chart.data.datasets[1].data.push({
+                                    x: Date.now(),
+                                    y: latestData.pitch
+                                });
+                                chart.data.datasets[2].data.push({
+                                    x: Date.now(),
+                                    y: latestData.yaw
+                                });
+                            }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 180,
+                        title: {
+                            display: true,
+                            text: 'Angle (°)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    }
                 }
             }
         });
-
-        // Connexion WebSocket au serveur Flask
-        var socket = io.connect("http://" + document.domain + ":5000");
-
-        socket.on("connect", function() {
-            console.log("Connecté au serveur WebSocket");
-        });
-
-        socket.on("update_angles", function(data) {
-            var timestamp = new Date().toLocaleTimeString();
-
-            // Ajouter les nouvelles données
-            anglesChart.data.labels.push(timestamp);
-            anglesChart.data.datasets[0].data.push(data.roll);
-            anglesChart.data.datasets[1].data.push(data.pitch);
-            anglesChart.data.datasets[2].data.push(data.yaw);
-
-            // Limiter l'affichage à 20 points pour éviter la surcharge
-            if (anglesChart.data.labels.length > 20) {
-                anglesChart.data.labels.shift();
-                anglesChart.data.datasets[0].data.shift();
-                anglesChart.data.datasets[1].data.shift();
-                anglesChart.data.datasets[2].data.shift();
-            }
-
-            anglesChart.update();
-        });
-
-        // Vérifier l'état de connexion BLE toutes les 5 secondes
-        function checkStatus() {
-            fetch("/status")
-                .then(response => response.json())
-                .then(data => {
-                    if (data.ble_connected) {
-                        document.getElementById("ble-status").innerText = "Connecté";
-                        document.getElementById("ble-status").className = "badge bg-success";
-                    } else {
-                        document.getElementById("ble-status").innerText = "Déconnecté";
-                        document.getElementById("ble-status").className = "badge bg-danger";
-                    }
-                })
-                .catch(error => {
-                    console.error("Erreur lors de la récupération du statut BLE :", error);
-                    document.getElementById("ble-status").innerText = "Erreur";
-                    document.getElementById("ble-status").className = "badge bg-warning";
-                });
-        }
-
-        setInterval(checkStatus, 5000);  // Mise à jour de l'état toutes les 5s
     </script>
-{% endblock %}
+
+</body>
+</html>

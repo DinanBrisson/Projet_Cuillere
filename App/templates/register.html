@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inscription - Segmentation Médicale</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(to right, #87CEEB, #ffffff);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .register-container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-control {
+            height: 45px;
+        }
+        .btn-primary {
+            background: #17a2b8;
+            border: none;
+        }
+        .btn-primary:hover {
+            background: #138496;
+        }
+        .text-blue {
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="register-container">
+        <div class="text-center mb-4">
+            <i class="fa fa-user-md fa-3x text-blue"></i>
+            <h3 class="mt-2">Inscription</h3>
+            <p class="text-muted">Créez un compte pour accéder à l'application Stable Spoon</p>
+        </div>
+
+        <form method="POST">
+            {{ form.hidden_tag() }}
+
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-id-card"></i> Prénom</label>
+                {{ form.firstname(class="form-control", placeholder="Entrez votre prénom") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-id-card"></i> Nom</label>
+                {{ form.lastname(class="form-control", placeholder="Entrez votre nom") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-briefcase"></i> Profession</label>
+                {{ form.profession(class="form-control", placeholder="Votre profession") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-calendar"></i> Date de naissance</label>
+                {{ form.birthdate(class="form-control", type="date") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-envelope"></i> Email</label>
+                {{ form.email(class="form-control", placeholder="Entrez votre email") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-lock"></i> Mot de passe</label>
+                {{ form.password(class="form-control", placeholder="Choisissez un mot de passe") }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label"><i class="fa fa-lock"></i> Confirmer le mot de passe</label>
+                {{ form.confirm_password(class="form-control", placeholder="Répétez votre mot de passe") }}
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">S'inscrire</button>
+        </form>
+
+        <p class="text-center mt-3">
+            Déjà inscrit ? <a href="{{ url_for('login') }}" class="text-blue">Se connecter</a>
+        </p>
+    </div>
+
+</body>
+</html>
