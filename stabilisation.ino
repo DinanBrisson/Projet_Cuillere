@@ -53,12 +53,15 @@ void calibrateGyro() {
 void setup() {
   // Initialisation du port série pour debug
   Serial.begin(115200);
-  while (!Serial);
 
+  // === Correction ici : suppression du blocage si pas de Moniteur Série ouvert ===
+  delay(2000); // Petite pause pour laisser le temps à l'USB de s'initialiser si besoin
+  
   // Initialisation du BLE (Bluetooth Low Energy)
   if (!BLE.begin()) {
     Serial.println("Échec de l'initialisation du BLE !");
-    while (1);
+    // Redémarrage en cas d'échec d'initialisation du BLE (évite blocage infini)
+    NVIC_SystemReset();
   }
   angleService.addCharacteristic(angleCharacteristic);
   BLE.addService(angleService);
@@ -68,7 +71,8 @@ void setup() {
   // Initialisation de l'IMU intégré (accéléromètre et gyroscope)
   if (!IMU.begin()) {
     Serial.println("Erreur : Impossible d'initialiser l'IMU !");
-    while (1);
+    // Redémarrage aussi en cas d'échec IMU
+    NVIC_SystemReset();
   }
 
   Serial.println("=======================================");
@@ -164,15 +168,14 @@ void loop() {
     float angles[3] = { (float)roll_servo, (float)pitch_servo, (float)yaw_servo };
     angleCharacteristic.writeValue((uint8_t*)angles, sizeof(angles));
     
-   // Optionnel : affichage des valeurs sur le moniteur série (pour debug)
-   //Serial.print("Roll : ");
-   //Serial.print(roll_servo);
-   //Serial.print(" | Pitch : ");
-   //Serial.print(pitch_servo);
-   //Serial.print(" | Yaw : ");
-   //Serial.print(yaw_servo);
-   //Serial.println(); 
-
+    // Optionnel : affichage des valeurs sur le moniteur série (pour debug)
+    //Serial.print("Roll : ");
+    //Serial.print(roll_servo);
+    //Serial.print(" | Pitch : ");
+    //Serial.print(pitch_servo);
+    //Serial.print(" | Yaw : ");
+    //Serial.print(yaw_servo);
+    //Serial.println(); 
 
   } else {
     Serial.println("IMU non dispo !");
